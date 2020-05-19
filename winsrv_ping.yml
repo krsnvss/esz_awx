@@ -1,6 +1,7 @@
 ---
 - name: Ping servers
   hosts: winsrv
+  gather_facts: no
   tasks:
     - name: "Ping {{ ansible_hostname }}"
       win_ping:
