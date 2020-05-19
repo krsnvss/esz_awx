@@ -1,0 +1,22 @@
+---
+  # This playbook starts OS update process on all Windows servers
+  - name: Windows servers full update with reboot
+    hosts: winsrv
+    tasks:
+    - name: "{{ ansible_hostname }} Search and install all updates"
+      win_updates:
+        category_names:
+          - Application
+          - Definition Updates
+          - Feature Packs
+          - SecurityUpdates
+          - CriticalUpdates
+          - Tools
+          - UpdateRollups
+          - Updates
+        log_path: C:\ansible_win_update.txt
+      register: win_upd
+      
+    - name: "Reboot {{ ansible_hostname }}"
+      win_reboot:
+      when: win_upd.reboot_required
