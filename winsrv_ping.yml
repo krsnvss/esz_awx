@@ -1,0 +1,6 @@
+---
+- name: Ping servers
+  hosts: winsrv
+  tasks:
+    - name: "Ping {{ ansible_hostname }}"
+      win_ping:
