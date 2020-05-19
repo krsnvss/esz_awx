@@ -1,0 +1,231 @@
+---
+# This playbook makes initial configuration for cisco switches (ESZ)
+- name: Cisco IOS initial configuration
+  hosts: cisco
+  vars:
+    # Switches from ABK
+    office:
+      - "sw-abk"
+      - "sw-abk1"
+    # Switches from piles
+    piles:
+      - "sw-svpunkt"
+    # Switches from plant
+    plant:
+      - "sw-gallery"
+    # Zabbix server ip address
+    zabbix_server: 172.16.2.98
+    # Credentials to access zabbix server
+    zabbix_user:
+      prompt: "Enter Zabbix user name: "
+      unsafe: yes
+      private: yes
+    zabbix_password:
+      prompt: "Enter Zabbix password: "
+      unsafe: yes
+      private: yes
+    # Make sure that defined hosts group exists on Zabbix server
+    zabbix_group: Switches
+    # Make sure that defined template exists on Zabbix server
+    zabbix_template: Template Net Cisco IOS SNMPv2
+
+  tasks:
+    - name: configure the login banner
+      ios_banner:
+        banner: login
+        text: |
+          This switch is a property of Agrosnabsakhar LLC
+          Immediately disconnect if you're not authorized to manage this switch!
+          For further questions please contact Agrosnabsakhar IT department
+        state: present
+
+    - name: "{{ ansible_net_hostname }} - Configure trunk ports"
+      ios_l2_interfaces:
+        config:
+          - name: "{{ item }}"
+            trunk:
+              allowed_vlans: 10,20,30,40,50
+              native_vlan: 10
+        state: replaced
+      loop:
+        - GigabitEthernet1/0/1
+        - GigabitEthernet1/1/1
+
+    - name: "{{ ansible_net_hostname }} - Configure GigabitEthernet1/0/2 as trunk port"
+      ios_l2_interfaces:
+        config:
+          - name: GigabitEthernet1/0/2
+            trunk:
+              allowed_vlans: 10,20,30,40,50
+              native_vlan: 10
+        state: replaced
+      ignore_errors: yes
+
+    - name: "{{ ansible_net_hostname }} - Create ABK Vlans"
+      ios_vlans:
+        config:
+          - name: management
+            vlan_id: 10
+            state: active
+            shutdown: disabled
+          - name: users
+            vlan_id: 20
+            state: active
+            shutdown: disabled
+          - name: video
+            vlan_id: 30
+            state: active
+            shutdown: disabled
+        state: merged
+      when: "ansible_net_hostname in office"
+
+    - name: "{{ ansible_net_hostname }} - Create Plant Vlans"
+      ios_vlans:
+        config:
+          - name: management
+            vlan_id: 10
+            state: active
+            shutdown: disabled
+          - name: users_plant
+            vlan_id: 40
+            state: active
+            shutdown: disabled
+          - name: video
+            vlan_id: 30
+            state: active
+            shutdown: disabled
+        state: merged
+      when: "ansible_net_hostname in plant"
+
+    - name: "{{ ansible_net_hostname }} - Create Piles Vlans"
+      ios_vlans:
+        config:
+          - name: management
+            vlan_id: 10
+            state: active
+            shutdown: disabled
+          - name: users_piles
+            vlan_id: 50
+            state: active
+            shutdown: disabled
+          - name: video
+            vlan_id: 30
+            state: active
+            shutdown: disabled
+        state: merged
+      when: "ansible_net_hostname in piles"
+
+    - name: "{{ ansible_net_hostname }} - Add interfaces to VLAN 10" 
+      ios_l2_interfaces:
+        config:
+          - name: "{{ item }}"
+            access:
+              vlan: 10
+        state: merged      
+      when: "ansible_net_hostname in office"
+      loop:
+        - GigabitEthernet1/0/3
+        - GigabitEthernet1/0/4
+    
+    - name: "{{ ansible_net_hostname }} - Set VLAN 10 IP address" 
+      ios_l3_interfaces:
+        config:
+          - name: vlan10
+            ipv4:
+              - address: "{{ ansible_net_all_ipv4_addresses[0] }}"
+        state: merged
+      
+    - name: "{{ ansible_net_hostname }} - Add interfaces to VLAN 20" 
+      ios_l2_interfaces:
+        config:
+          - name: "{{ item }}"
+            access:
+              vlan: 20
+        state: replaced
+      when: "ansible_net_hostname in office"
+      loop:
+        - GigabitEthernet1/0/5
+        - GigabitEthernet1/0/6
+        - GigabitEthernet1/0/7
+        - GigabitEthernet1/0/8
+        - GigabitEthernet1/0/9
+        - GigabitEthernet1/0/10
+        - GigabitEthernet1/0/11
+        - GigabitEthernet1/0/12
+        - GigabitEthernet1/0/13
+        - GigabitEthernet1/0/14
+        - GigabitEthernet1/0/15
+        - GigabitEthernet1/0/16
+        - GigabitEthernet1/0/17
+        - GigabitEthernet1/0/18
+        - GigabitEthernet1/0/19
+        - GigabitEthernet1/0/20
+        
+    - name: "{{ ansible_net_hostname }} - Add interfaces to VLAN 30"
+      ios_l2_interfaces:
+        config:
+          - name: "{{ item }}"
+            access:
+              vlan: 30
+        state: replaced
+      when: "ansible_net_hostname in office"
+      loop:
+        - GigabitEthernet1/0/21
+        - GigabitEthernet1/0/22
+        - GigabitEthernet1/0/23
+        - GigabitEthernet1/0/24
+    
+    - name: "{{ ansible_net_hostname }} - Set route to default-gateway"
+      ios_static_route:
+        prefix: 0.0.0.0
+        mask: 0.0.0.0
+        next_hop: 172.16.1.10
+        state: present
+
+    - name: "{{ ansible_net_hostname }} - Set NTP server"
+      ios_ntp:
+        server: 64.99.80.121
+        state: present
+    
+    - name: "{{ ansible_net_hostname }} - Set DNS server"
+      ios_system:
+        domain_search: sf.loc
+        name_servers:
+          - 172.16.2.1
+          - 172.16.2.3
+        state: present
+    
+    - name: "{{ ansible_net_hostname }} - Enable SNMP server"
+      ios_config:
+        lines:
+          - snmp-server community public RO
+
+    - name: "{{ ansible_net_hostname }} - Save changes"
+      ios_config:
+        save_when: modified
+
+    - name: "Add {{ ansible_net_hostname }} on Zabbix server"
+      local_action: 
+        module: zabbix_host
+        server_url: http://{{ zabbix_server }}
+        login_user: "{{ zabbix_user }}"
+        login_password: "{{ zabbix_password }}"
+        host_name: "{{ ansible_net_hostname }}"
+        description: "{{ ansible_net_model }}"
+        host_groups:
+          - "{{ zabbix_group }}"
+        link_templates:
+          - "{{ zabbix_template }}"
+        status: enabled
+        state: present
+        inventory_zabbix:
+          tag: cisco
+          notes: "{{ ansible_net_model }}"
+          os: "{{ ansible_net_iostype }} {{ ansible_net_version }}"
+          hardware: "{{ ansible_net_model }}"
+          hardware_full: "Interfaces: {{ ansible_net_interfaces|length }}. Total Memory: {{ ansible_net_memtotal_mb }}MB"
+        interfaces:
+          - type: 2
+            main: 1
+            useip: 1
+            ip: "{{ ansible_net_all_ipv4_addresses[0] }}"
