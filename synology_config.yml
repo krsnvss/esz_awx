@@ -1,0 +1,7 @@
+---
+# This playbook configures Synology NAS
+- name: Synology configuration
+  hosts: synology
+  tasks:
+    - name: Ping
+      ping:
