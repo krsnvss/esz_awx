@@ -13,21 +13,6 @@
     # Switches from plant
     plant:
       - "sw-gallery"
-    # Zabbix server ip address
-    zabbix_server: 172.16.2.98
-    # Credentials to access zabbix server
-    zabbix_user:
-      prompt: "Enter Zabbix user name: "
-      unsafe: yes
-      private: yes
-    zabbix_password:
-      prompt: "Enter Zabbix password: "
-      unsafe: yes
-      private: yes
-    # Make sure that defined hosts group exists on Zabbix server
-    zabbix_group: Switches
-    # Make sure that defined template exists on Zabbix server
-    zabbix_template: Template Net Cisco IOS SNMPv2
 
   tasks:
     - name: configure the login banner
@@ -203,29 +188,3 @@
     - name: "{{ ansible_net_hostname }} - Save changes"
       ios_config:
         save_when: modified
-
-    - name: "Add {{ ansible_net_hostname }} on Zabbix server"
-      local_action: 
-        module: zabbix_host
-        server_url: http://{{ zabbix_server }}
-        login_user: "{{ zabbix_user }}"
-        login_password: "{{ zabbix_password }}"
-        host_name: "{{ ansible_net_hostname }}"
-        description: "{{ ansible_net_model }}"
-        host_groups:
-          - "{{ zabbix_group }}"
-        link_templates:
-          - "{{ zabbix_template }}"
-        status: enabled
-        state: present
-        inventory_zabbix:
-          tag: cisco
-          notes: "{{ ansible_net_model }}"
-          os: "{{ ansible_net_iostype }} {{ ansible_net_version }}"
-          hardware: "{{ ansible_net_model }}"
-          hardware_full: "Interfaces: {{ ansible_net_interfaces|length }}. Total Memory: {{ ansible_net_memtotal_mb }}MB"
-        interfaces:
-          - type: 2
-            main: 1
-            useip: 1
-            ip: "{{ ansible_net_all_ipv4_addresses[0] }}"
