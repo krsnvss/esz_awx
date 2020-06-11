@@ -2,7 +2,7 @@
 # This playbook installs and configures zabbix proxy on centos 8
 # According to instructions at https://www.zabbix.com/documentation/4.0/manual/installation/install_from_packages/rhel_centos
 - name: Install and configure Zabbix proxy
-  hosts: pcs-zabbix
+  hosts: pcs-zabbix.sf.loc
   vars:
     zabbix_password: zabbix
     zabbix_server: minizabbix.sf.loc
