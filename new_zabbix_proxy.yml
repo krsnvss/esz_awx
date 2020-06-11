@@ -2,7 +2,7 @@
 # This playbook installs and configures zabbix proxy on centos 8
 # According to instructions at https://www.zabbix.com/documentation/4.0/manual/installation/install_from_packages/rhel_centos
 - name: Install and configure Zabbix proxy
-  hosts: pcs-zabbix.sf.loc
+  hosts: zabbix
   vars:
     zabbix_password: zabbix
     zabbix_server: minizabbix.sf.loc
@@ -17,12 +17,20 @@
       yum:
         update_cache: yes
 
-    - name: Install Zabbix packages
+    - name: Install packages
       yum:
         name:
           - zabbix-proxy-mysql
           - zabbix-web-mysql
           - zabbix-agent
+          - python3-PyMySQL
+          - mysql-server
+
+    - name: Start MySQL service
+      service:
+          name: mysqld
+          enabled: yes
+          state: started
 
     - name: Create Zabbix database
       mysql_db:
@@ -37,22 +45,32 @@
     - name: Create MySQL user
       mysql_user:
           name: zabbix
-          login_password: "{{ zabbix_password }}"
-          state: present # not required. choices: present;absent. Whether the user should exist.  When C(absent), removes the user.
+          password: "{{ zabbix_password }}"
+          state: present
           host: localhost
           priv: 'zabbix.*:ALL'
 
+    - name: Check if it's neccesary to uncompress dump file
+      stat:
+          path: /usr/share/doc/zabbix-proxy-mysql/schema.sql
+      register: dump_file
+
     - name: Extract sql dump with initial schema
-      unarchive:
-          src: /usr/share/doc/zabbix-proxy-mysql*/create.sql.gz
-          dest: /tmp/zabbix_init_dump/
-          remote_src: yes
+      command: "gzip -d /usr/share/doc/zabbix-proxy-mysql/schema.sql.gz"
+      when: dump file is defined and not dump_file.stat.exists
+
+    - name: Check if database already exists
+      mysql_db:
+        name: zabbix
+        state: present
+      register: zabbix_db_exists
           
     - name: Import initial schema
       mysql_db:
         state: import
-        name: all
-        target: /tmp/zabbix_init_dump/create.sql
+        name: zabbix
+        target: /usr/share/doc/zabbix-proxy-mysql/schema.sql
+      when: zabbix_db_exists.changed
 
     - name: Configure database for Zabbix server/proxy (DBHost=localhost)
       lineinfile:
@@ -77,6 +95,9 @@
         path: /etc/zabbix/zabbix_proxy.conf
         regexp: '^DBUser='
         line: "DBUser={{ zabbix_password }}"
+
+    - name: Make zabbix SE policy package active
+      command: "semodule -i zabbix_server.limits.pp"
 
     - name: Start zabbix-proxy service
       service:
